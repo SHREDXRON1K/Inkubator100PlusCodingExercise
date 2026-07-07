@@ -81,11 +81,6 @@ ASSUMPTIONS I MADE
   count a bunch of "zero volume" days that don't actually exist and skew
   the average down. Trading days is the correct interpretation here.
 
-- START_TIME_FRAME / END_TIME_FRAME are currently hardcoded placeholders
-  (2021-06-01 to 2021-10-13). Nobody gave me exact "day X / day Y" dates,
-  so I just picked a window in the middle of the year to test the logic.
-  These need to be swapped for whatever the real requested dates are.
-
 - Rows with missing OHLCV values get dropped entirely, not imputed/filled.
   Didn't want to make up fake price data just to keep a row - felt safer
   to lose ~23 rows out of ~26000 than introduce invented numbers into a
@@ -148,8 +143,6 @@ DATA QUIRKS I NOTICED ALONG THE WAY
 
 WHAT I'D DO DIFFERENTLY WITH MORE TIME
 ------------------------------------------
-- Actually get real day X / day Y dates instead of guessing a placeholder
-  window.
 - Maybe make the suspicious-jump threshold configurable/tested against a
   few different values to see how sensitive the top-5 ranking is to it.
 - Add a flag/column in the final PDF output itself noting "this ticker
