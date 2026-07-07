@@ -1,0 +1,158 @@
+INKUBATOR 100 PLUS GMBH - CODING EXERCISE
+Notes on my approach
+Author: Astero Wahyu Athala
+
+
+TOOLS I USED
+--------------
+- Python as the language
+
+- Claude AI:
+  - understanding OHLCV data / trading / stock market concepts I didn't
+    already know (I don't come from a finance background)
+  - generating some parts of the code: the plot, the PDF report, and the
+    logging setup. The actual core logic (csv -> per-ticker dataframes,
+    top performer calc, suspicious jump detection) I wrote myself
+  - getting suggestions on a better approach for working with the data,
+    and helping me write pseudocode before I actually started coding
+  - helping me reason through assumptions for stuff the task description
+    didn't explicitly cover
+
+- VS Code as my IDE
+
+- Google, mainly for looking up pandas documentation and python dict
+  documentation when I forgot the exact syntax for something
+
+
+WHAT THE SCRIPT DOES
+---------------------
+Takes the OHLCV price data, cleans it per ticker, flags any single-day price
+moves that look sus (probably data errors, not real market events), ranks
+tickers by % price performance over a chosen time frame, and spits out a
+plot + a PDF table of the top 5.
+
+
+MY APPROACH, STEP BY STEP
+---------------------------
+1. First thing I did was actually open the CSV before writing any code.
+   Good thing I did, because the task description said "one file per stock,
+   100 files total" but the real file is ONE big csv with all 100 tickers
+   stacked on top of each other (long format). Had to rebuild load_file()
+   around groupby("ticker") instead of looping over files. Would've wasted
+   a lot of time if I'd just coded blind based on the brief.
+
+2. load_file() reads the csv once, parses dates, then splits it per ticker
+   using groupby. For each ticker: sort by date, drop duplicate dates,
+   drop rows with missing OHLCV values, set date as the index.
+
+3. flag_suspicious_jumps() looks for any day where the price moved more
+   than 50% vs the day before. If it finds one, it also checks whether the
+   price went back to roughly where it was before the jump, the very next
+   day. If yes -> probably just a one-day data glitch. If no -> the jump
+   "stuck", which is more concerning because it might be silently messing
+   with the performance ranking (see judgement calls below, this one's
+   actually important).
+
+4. compute_top_perfomers() filters each ticker's data to the chosen date
+   window, calculates % change from first to last close price in that
+   window, and also grabs the trailing 30-trading-day average volume as of
+   the end date. Then just takes the top 5 by % change.
+
+5. plot_top_performers() and generate_pdf_report() are just presentation,
+   nothing fancy, just wanted the deliverables to look somewhat presentable.
+
+
+ASSUMPTIONS I MADE
+---------------------
+- Used CLOSE price for the % performance calc, not open/high/low. Close is
+  the standard "end of day" reference price, open is noisier (gaps
+  overnight). Didn't use adj_close because there isn't one in the data (see
+  below).
+
+- No "adj_close" (adjusted close - a close price corrected for stock
+  splits/dividends) column exists in the source data at all. Fell back to
+  using plain close for every ticker instead. Since this is synthetic data
+  with no real corporate actions, this is probably fine, but flagging it
+  because in a real dataset this would NOT be a safe assumption (a stock
+  split would look like a huge price crash if you don't adjust for it).
+
+- 30-day average volume = last 30 TRADING days, not last 30 calendar days.
+  Trading calendars skip weekends/holidays, so calendar days would silently
+  count a bunch of "zero volume" days that don't actually exist and skew
+  the average down. Trading days is the correct interpretation here.
+
+- START_TIME_FRAME / END_TIME_FRAME are currently hardcoded placeholders
+  (2021-06-01 to 2021-10-13). Nobody gave me exact "day X / day Y" dates,
+  so I just picked a window in the middle of the year to test the logic.
+  These need to be swapped for whatever the real requested dates are.
+
+- Rows with missing OHLCV values get dropped entirely, not imputed/filled.
+  Didn't want to make up fake price data just to keep a row - felt safer
+  to lose ~23 rows out of ~26000 than introduce invented numbers into a
+  performance calculation.
+
+- Duplicate dates for the same ticker: kept the first occurrence, dropped
+  the rest (pandas default behavior of drop_duplicates). Didn't dig into
+  WHY duplicates exist in the first place, just handled them.
+
+
+JUDGEMENT CALLS (the important part, I think)
+------------------------------------------------
+- The 50% "suspicious jump" threshold and the 5% "reverts back" tolerance
+  are both numbers I just picked myself, they're not in the brief or the
+  pseudocode. Nothing scientific about them, just picked values that felt
+  like a reasonable "this is clearly not normal daily movement" cutoff.
+  Would want to double check these against whoever actually knows what
+  normal volatility looks like for this kind of data.
+
+- Bigger judgement call: when I actually ran the top-5 ranking, I noticed
+  something weird. The #1 "top performer" (General Electric, ~940-1485%
+  depending on the date window) is ALSO one of the tickers flagged by
+  flag_suspicious_jumps() with a huge jump that never reverted back down.
+  That's suspicious - a stock jumping 1485% doesn't look like organic
+  growth, it looks like a single bad/glitched data point that stuck around
+  and is now dominating the ranking.
+
+  I decided NOT to automatically filter these out or "fix" the ranking in
+  code. Felt like that's a decision that shouldn't be made silently by a
+  script, someone needs to actually look at it and decide whether to
+  exclude that ticker, cap the return, investigate the row, whatever. So
+  right now the top-5 list is technically "correct" based on the literal
+  task instructions (just compare close price at start vs end), but I
+  wouldn't trust it at face value without a human sanity-checking it
+  against the suspicious jumps list first.
+
+- Also didn't try to distinguish "real" 100%+ gains from "probably a
+  glitch" gains automatically, same reasoning as above, felt like a call
+  above my pay grade to make unilaterally in code.
+
+
+DATA QUIRKS I NOTICED ALONG THE WAY
+--------------------------------------
+- The data covers 2021-01-01 to 2021-12-31, but 2021-01-01 is a Friday AND
+  New Year's Day, so real markets would've been closed that day. Confirms
+  this dataset is synthetic and doesn't follow a real trading calendar,
+  good to know if anyone assumes this behaves like real market data
+  anywhere else in the pipeline.
+
+- Not every ticker has the same number of rows (ranges from 239 to 261
+  rows per ticker across the year). So comparing % performance across
+  tickers that don't have identical date coverage could be a little
+  apples-to-oranges. Didn't fix this, just noting it as a caveat on the
+  ranking.
+
+- 100 tickers total, matches what the original task description said, so
+  at least that part of the brief was accurate even though the file
+  structure wasn't.
+
+
+WHAT I'D DO DIFFERENTLY WITH MORE TIME
+------------------------------------------
+- Actually get real day X / day Y dates instead of guessing a placeholder
+  window.
+- Maybe make the suspicious-jump threshold configurable/tested against a
+  few different values to see how sensitive the top-5 ranking is to it.
+- Add a flag/column in the final PDF output itself noting "this ticker
+  also appears in the suspicious jumps list" so it's not something you'd
+  only find if you happened to cross-reference both outputs manually like
+  I did.
