@@ -136,10 +136,6 @@ DATA QUIRKS I NOTICED ALONG THE WAY
   apples-to-oranges. Didn't fix this, just noting it as a caveat on the
   ranking.
 
-- 100 tickers total, matches what the original task description said, so
-  at least that part of the brief was accurate even though the file
-  structure wasn't.
-
 
 WHAT I'D DO DIFFERENTLY WITH MORE TIME
 ------------------------------------------
